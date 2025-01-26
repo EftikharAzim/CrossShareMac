@@ -1,24 +1,23 @@
-//
-//  ContentView.swift
-//  CrossShareMac
-//
-//  Created by Eftikhar Azim on 23/1/25.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var advertiser = MacAdvertiser()
+    @StateObject private var browser = AndroidBrowser()
+    
     var body: some View {
         VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+            Text("Mac Device")
+                .font(.title)
+            
+            // Discovered Android Devices
+            List(browser.discoveredDevices, id: \.name) { service in
+                Text("Android: \(service.name)")
+            }
         }
         .padding()
+        .onAppear {
+            advertiser.startAdvertising()
+            browser.startBrowsing()
+        }
     }
-}
-
-#Preview {
-    ContentView()
 }
