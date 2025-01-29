@@ -1,10 +1,3 @@
-//
-//  MacAdvertiser.swift
-//  CrossShareMac
-//
-//  Created by Eftikhar Azim on 23/1/25.
-//
-
 import Foundation
 import Network
 
@@ -19,11 +12,13 @@ class MacAdvertiser: NSObject, ObservableObject, NetServiceDelegate {
         netService.delegate = self
         netService.publish()
     }
+    
     func netServiceDidPublish(_ sender: NetService) {
         print("✅ Service published: \(sender.name)")
     }
-    // Handle errors
-    func netService(_ sender: NetService, didNotPublish errorDict: [String : NSNumber]) {
-        print("⚠️ MacAdvertiser Error: \(errorDict)")
+    
+    func netService(_ sender: NetService,
+                   didNotPublish errorDict: [String : NSNumber]) {
+        print("❌ Publish failed: \(errorDict)")
     }
 }

@@ -1,23 +1,99 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @StateObject private var advertiser = MacAdvertiser()
     @StateObject private var browser = AndroidBrowser()
+    @State private var selectedFileURL: URL?
+    @State private var selectedDevice: NetService?
+    @StateObject private var transferService = FileTransferService.shared
     
     var body: some View {
         VStack {
-            Text("Mac Device")
+            Text("Mac File Share")
                 .font(.title)
+                .padding()
             
             // Discovered Android Devices
             List(browser.discoveredDevices, id: \.name) { service in
-                Text("Android: \(service.name)")
+                Text(service.name)
+                    .onTapGesture {
+                        selectedDevice = service
+                    }
+                    .contextMenu {
+                        Button("Send File") {
+                            selectFile()
+                        }
+                    }
+            }
+            
+            // Selected File
+            if let fileURL = selectedFileURL {
+                Text("Selected: \(fileURL.lastPathComponent)")
+                    .padding()
             }
         }
-        .padding()
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            handleFileDrop(providers: providers)
+        }
         .onAppear {
             advertiser.startAdvertising()
             browser.startBrowsing()
         }
+    }
+    
+    private func selectFile() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        
+        if panel.runModal() == .OK, let url = panel.url {
+            selectedFileURL = url
+            startFileTransfer()
+        }
+    }
+    
+    private func handleFileDrop(providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+            if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
+                DispatchQueue.main.async {
+                    selectedFileURL = url
+                    startFileTransfer()
+                }
+            }
+        }
+        return true
+    }
+    
+    private func startFileTransfer() {
+        guard let device = selectedDevice,
+              let addresses = device.addresses, // Get all resolved addresses
+              let port = device.port != -1 ? device.port : nil,
+              let fileURL = selectedFileURL else {
+            print("⚠️ Missing connection details")
+            return
+        }
+        
+        // Find IPv4 address
+        var targetIP: String?
+        for address in addresses {
+            let data = address as NSData
+            var addr = sockaddr_in()
+            data.getBytes(&addr, length: MemoryLayout<sockaddr_in>.size)
+            let ip = String(cString: inet_ntoa(addr.sin_addr))
+            if ip.contains(".") { // Simple IPv4 check
+                targetIP = ip
+                break
+            }
+        }
+        
+        guard let ip = targetIP else {
+            print("🔴 No IPv4 address found")
+            return
+        }
+        
+        print("🔗 Connecting to \(ip):\(port)")
+        FileTransferService.shared.sendFile(to: ip, port: UInt16(port), fileURL: fileURL)
     }
 }

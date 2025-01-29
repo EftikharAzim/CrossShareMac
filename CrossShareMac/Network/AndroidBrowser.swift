@@ -1,10 +1,11 @@
 import Foundation
 import Combine
+import Network
 
 class AndroidBrowser: NSObject, ObservableObject, NetServiceBrowserDelegate {
     private var browser: NetServiceBrowser!
     @Published var discoveredDevices: [NetService] = []
-    private var resolvingServices = Set<String>() // Track resolving services
+    private var resolvingServices = Set<String>()
     
     func startBrowsing() {
         browser = NetServiceBrowser()
@@ -12,6 +13,7 @@ class AndroidBrowser: NSObject, ObservableObject, NetServiceBrowserDelegate {
         browser.searchForServices(ofType: "_fileshare._tcp", inDomain: "")
     }
     
+    // MARK: - NetServiceBrowserDelegate
     func netServiceBrowser(_ browser: NetServiceBrowser,
                           didFind service: NetService,
                           moreComing: Bool) {
@@ -44,6 +46,7 @@ class AndroidBrowser: NSObject, ObservableObject, NetServiceBrowserDelegate {
     }
 }
 
+// MARK: - NetServiceDelegate
 extension AndroidBrowser: NetServiceDelegate {
     func netServiceDidResolveAddress(_ sender: NetService) {
         print("netServiceDidResolveAddress[+]")

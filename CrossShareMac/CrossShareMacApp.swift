@@ -1,17 +1,11 @@
-//
-//  CrossShareMacApp.swift
-//  CrossShareMac
-//
-//  Created by Eftikhar Azim on 23/1/25.
-//
-
 import SwiftUI
 
 @main
-struct CrossShareMacApp: App {
+struct MacFileShareApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .frame(minWidth: 400, minHeight: 300)
         }
     }
 }
