@@ -6,19 +6,9 @@ class FileTransferService : ObservableObject {
     private var listener: NWListener?
     
     init() {
-        startServer(port: 1234) // Start server on initialization
+        //        startServer(port: 1234) // Start server on initialization
+        startServer(port: 8080) // Start server on initialization
     }
-    
-    //    func startServer(port: UInt16) {
-    //        print("🖥 Starting server on port \(port)...")
-    //        do {
-    //            listener = try NWListener(using: .tcp, on: .any)
-    //            setupServerHandlers()
-    //            listener?.start(queue: .main)
-    //        } catch {
-    //            print("🔴 Server failed to start: \(error)")
-    //        }
-    //    }
     
     private func setupServerHandlers() {
         listener?.stateUpdateHandler = { state in
@@ -38,19 +28,9 @@ class FileTransferService : ObservableObject {
     func startServer(port: UInt16) {
         print("Starting server on port \(port)")
         do {
-            //            listener = try NWListener(using: .tcp, on: NWEndpoint.Port(rawValue: port)!)
-            listener = try NWListener(using: .tcp, on: .any)
+            listener = try NWListener(using: .tcp, on: NWEndpoint.Port(rawValue: port)!)
+            //            listener = try NWListener(using: .tcp, on: .any)
             setupServerHandlers()
-            listener?.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    print("🖥 Server ready on port \(port)")
-                case .failed(let error):
-                    print("🔴 Server error: \(error)")
-                default:
-                    break
-                }
-            }
             
             listener?.newConnectionHandler = { [weak self] connection in
                 print("🔗 New connection from \(connection.endpoint)")
@@ -156,42 +136,50 @@ class FileTransferService : ObservableObject {
     }
     
     private func receiveFile(connection: NWConnection) {
-        connection.receiveMessage { [weak self] data, _, _, error in
-            guard let metadataData = data,
-                  let metadata = String(data: metadataData, encoding: .utf8),
-                  let separatorIndex = metadata.firstIndex(of: "|") else {
+        // 1. Read metadata length (4 bytes)
+        connection.receive(minimumIncompleteLength: 4, maximumLength: 4) { [weak self] data, _, _, error in
+            guard let data = data, data.count == 4 else {
+                print("🔴 Failed to read metadata length")
                 return
             }
             
-            let fileName = String(metadata[..<separatorIndex])
-            let fileSize = Int(metadata[metadata.index(after: separatorIndex)...]) ?? 0
+            // 2. Extract metadata length (big-endian UInt32)
+            let metadataLength = data.withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
             
-            self?.receiveFileData(
-                connection: connection,
-                fileName: fileName,
-                fileSize: fileSize
-            )
+            // 3. Read metadata bytes
+            connection.receive(minimumIncompleteLength: Int(metadataLength), maximumLength: Int(metadataLength)) { data, _, _, _ in
+                guard let metadataData = data,
+                      let metadata = String(data: metadataData, encoding: .utf8),
+                      let separatorIndex = metadata.firstIndex(of: "|") else {
+                    print("🔴 Invalid metadata")
+                    return
+                }
+                
+                // 4. Process file data
+                let fileName = String(metadata[..<separatorIndex])
+                let fileSize = Int(metadata[metadata.index(after: separatorIndex)...]) ?? 0
+                self?.receiveFileData(connection: connection, fileName: fileName, fileSize: fileSize)
+            }
         }
     }
     
     private func receiveFileData(connection: NWConnection, fileName: String, fileSize: Int) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: fileSize) { data, _, _, _ in
+        connection.receive(minimumIncompleteLength: fileSize, maximumLength: fileSize) { data, _, _, _ in
             guard let fileData = data else { return }
             
+            // Save to Downloads with original name (e.g., "photo.jpg")
             let downloadsDir = FileManager.default.urls(
                 for: .downloadsDirectory,
                 in: .userDomainMask
             ).first!
-            
             let fileURL = downloadsDir.appendingPathComponent(fileName)
             
             do {
                 try fileData.write(to: fileURL)
-                print("✅ File saved to: \(fileURL.path)")
+                print("✅ File saved: \(fileURL.path)")
             } catch {
-                print("🔴 File save error: \(error)")
+                print("🔴 Save error: \(error)")
             }
-            
             connection.cancel()
         }
     }

@@ -8,7 +8,7 @@ class MacAdvertiser: NSObject, ObservableObject, NetServiceDelegate {
         netService = NetService(domain: "",
                                type: "_fileshare._tcp",
                                name: "Mac-\(Host.current().name!)",
-                               port: 1234)
+                               port: 8080)
         netService.delegate = self
         netService.publish()
     }
