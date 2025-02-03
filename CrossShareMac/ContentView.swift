@@ -67,11 +67,23 @@ struct ContentView: View {
     }
     
     private func startFileTransfer() {
-        guard let device = selectedDevice,
-              let addresses = device.addresses, // Get all resolved addresses
-              let port = device.port != -1 ? device.port : nil,
-              let fileURL = selectedFileURL else {
-            print("⚠️ Missing connection details")
+        guard let device = selectedDevice else {
+            print("⚠️ No device selected. Please select a device first.")
+            return
+        }
+        
+        guard let addresses = device.addresses else {
+            print("⚠️ Device addresses not resolved")
+            return
+        }
+        
+        guard let port = device.port != -1 ? device.port : nil else {
+            print("⚠️ Invalid port number")
+            return
+        }
+        
+        guard let fileURL = selectedFileURL else {
+            print("⚠️ No file selected. Please select a file first.")
             return
         }
         
@@ -89,7 +101,7 @@ struct ContentView: View {
         }
         
         guard let ip = targetIP else {
-            print("🔴 No IPv4 address found")
+            print("🔴 No IPv4 address found in device addresses")
             return
         }
         
