@@ -1,9 +1,5 @@
 import SwiftUI
 import UniformTypeIdentifiers
-import os.log
-
-// Create a logger for ContentView
-private let logger = Logger(subsystem: "com.eftikharazim.CrossShareMac", category: "ContentView")
 
 struct ContentView: View {
     @StateObject private var advertiser = MacAdvertiser()
@@ -72,22 +68,22 @@ struct ContentView: View {
     
     private func startFileTransfer() {
         guard let device = selectedDevice else {
-            logger.warning("No device selected. Please select a device first.")
+            print("⚠️ No device selected. Please select a device first.")
             return
         }
         
         guard let addresses = device.addresses else {
-            logger.warning("Device addresses not resolved")
+            print("⚠️ Device addresses not resolved")
             return
         }
         
         guard let port = device.port != -1 ? device.port : nil else {
-            logger.warning("Invalid port number")
+            print("⚠️ Invalid port number")
             return
         }
         
         guard let fileURL = selectedFileURL else {
-            logger.warning("No file selected. Please select a file first.")
+            print("⚠️ No file selected. Please select a file first.")
             return
         }
         
@@ -105,11 +101,11 @@ struct ContentView: View {
         }
         
         guard let ip = targetIP else {
-            logger.error("No IPv4 address found in device addresses")
+            print("🔴 No IPv4 address found in device addresses")
             return
         }
         
-        logger.info("Connecting to \(ip):\(port)")
+        print("🔗 Connecting to \(ip):\(port)")
         FileTransferService.shared.sendFile(to: ip, port: UInt16(port), fileURL: fileURL)
     }
 }
