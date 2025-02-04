@@ -1,52 +1,58 @@
 import Foundation
 import Network
+import os.log
+
+// Create a logger for FileTransferService
+private let logger = Logger(subsystem: "com.eftikharazim.CrossShareMac", category: "FileTransferService")
 
 class FileTransferService : ObservableObject {
     static let shared = FileTransferService()
     private var listener: NWListener?
     
     init() {
-        //        startServer(port: 1234) // Start server on initialization
-        startServer(port: 8080) // Start server on initialization
+        logger.info("Initializing FileTransferService")
+        startServer(port: 8080)
     }
     
     private func setupServerHandlers() {
         listener?.stateUpdateHandler = { state in
             switch state {
             case .ready:
-                print("✅ Server running on port \(self.listener?.port?.rawValue ?? 0)")
+                logger.info("Server ready and running on port \(self.listener?.port?.rawValue ?? 0)")
             case .failed(let error):
-                print("🔴 Server error: \(error)")
+                logger.error("Server failed: \(error.localizedDescription)")
             case .waiting(let error):
-                print("🟡 Server waiting: \(error)")
-            default: break
+                logger.warning("Server waiting: \(error.localizedDescription)")
+            default:
+                logger.debug("Server state changed to: \(state)")
+                break
             }
         }
     }
     
     // MARK: - Server
     func startServer(port: UInt16) {
-        print("Starting server on port \(port)")
+        logger.info("Starting server on port \(port)")
         do {
             listener = try NWListener(using: .tcp, on: NWEndpoint.Port(rawValue: port)!)
             //            listener = try NWListener(using: .tcp, on: .any)
             setupServerHandlers()
             
             listener?.newConnectionHandler = { [weak self] connection in
-                print("🔗 New connection from \(connection.endpoint)")
+                logger.info("New connection established from \(connection.endpoint)")
                 self?.receiveFile(connection: connection)
                 connection.start(queue: .main)
             }
             
             listener?.start(queue: .main)
         } catch {
-            print("Failed to start server: \(error)")
+            logger.error("Failed to start server: \(error.localizedDescription)")
         }
     }
     
     // MARK: - Client
     func sendFile(to ip: String, port: UInt16, fileURL: URL) {
-        print("🚀 Starting connection to \(ip):\(port)")
+        logger.info("Initiating connection to \(ip):\(port)")
         let connection = NWConnection(
             host: NWEndpoint.Host(ip),
             port: NWEndpoint.Port(rawValue: port)!,
@@ -56,10 +62,10 @@ class FileTransferService : ObservableObject {
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
-                print("🚀 Connection ready")
+                logger.info("Connection ready")
                 self?.sendFileData(connection: connection, fileURL: fileURL)
             case .failed(let error):
-                print("🔴 Connection failed: \(error)")
+                logger.error("Connection failed: \(error.localizedDescription)")
             default:
                 break
             }
@@ -77,7 +83,7 @@ class FileTransferService : ObservableObject {
             // 1. Prepare metadata (name|size)
             let metadata = "\(fileName)|\(fileData.count)"
             guard let metadataData = metadata.data(using: .utf8) else {
-                print("🔴 Failed to encode metadata")
+                logger.error("Failed to encode metadata")
                 return
             }
             
@@ -87,14 +93,14 @@ class FileTransferService : ObservableObject {
             
             connection.send(content: lengthData, completion: .contentProcessed { error in
                 if let error = error {
-                    print("🔴 Metadata length send error: \(error)")
+                    logger.error("Metadata length send error: \(error.localizedDescription)")
                     return
                 }
                 
                 // 3. Send metadata
                 connection.send(content: metadataData, completion: .contentProcessed { error in
                     if let error = error {
-                        print("🔴 Metadata send error: \(error)")
+                        logger.error("Metadata send error: \(error.localizedDescription)")
                         return
                     }
                     
@@ -108,7 +114,7 @@ class FileTransferService : ObservableObject {
                             let thisChunk = min(chunkSize, remaining)
                             
                             if thisChunk <= 0 {
-                                print("✅ File sent successfully")
+                                logger.info("File sent successfully")
                                 connection.cancel()
                                 return
                             }
@@ -116,7 +122,7 @@ class FileTransferService : ObservableObject {
                             let chunk = Data(bytes: buffer.baseAddress! + offset, count: thisChunk)
                             connection.send(content: chunk, completion: .contentProcessed { error in
                                 if let error = error {
-                                    print("🔴 Chunk send error: \(error)")
+                                    logger.error("Chunk send error: \(error.localizedDescription)")
                                     connection.cancel()
                                     return
                                 }
@@ -131,7 +137,7 @@ class FileTransferService : ObservableObject {
                 })
             })
         } catch {
-            print("🔴 File read error: \(error)")
+            logger.error("File read error: \(error.localizedDescription)")
         }
     }
     
@@ -139,7 +145,7 @@ class FileTransferService : ObservableObject {
         // 1. Read metadata length (4 bytes)
         connection.receive(minimumIncompleteLength: 4, maximumLength: 4) { [weak self] data, _, _, error in
             guard let data = data, data.count == 4 else {
-                print("🔴 Failed to read metadata length")
+                logger.error("Failed to read metadata length")
                 return
             }
             
@@ -151,7 +157,7 @@ class FileTransferService : ObservableObject {
                 guard let metadataData = data,
                       let metadata = String(data: metadataData, encoding: .utf8),
                       let separatorIndex = metadata.firstIndex(of: "|") else {
-                    print("🔴 Invalid metadata")
+                    logger.error("Invalid metadata")
                     return
                 }
                 
@@ -176,9 +182,9 @@ class FileTransferService : ObservableObject {
             
             do {
                 try fileData.write(to: fileURL)
-                print("✅ File saved: \(fileURL.path)")
+                logger.info("File saved: \(fileURL.path)")
             } catch {
-                print("🔴 Save error: \(error)")
+                logger.error("Save error: \(error.localizedDescription)")
             }
             connection.cancel()
         }
